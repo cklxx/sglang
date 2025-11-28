@@ -159,6 +159,25 @@ class Engine(EngineBase):
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
 
+    def _run_coroutine_sync(self, coro, *, description: str):
+        """Execute a coroutine from sync APIs regardless of loop state."""
+
+        if self.loop.is_running():
+            try:
+                running_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                running_loop = None
+
+            if running_loop is self.loop:
+                raise RuntimeError(
+                    f"`{description}` must be awaited when Engine is used in an async context. "
+                    f"Call `await engine.async_{description}(...)` instead."
+                )
+
+            return asyncio.run_coroutine_threadsafe(coro, self.loop).result()
+
+        return self.loop.run_until_complete(coro)
+
     def generate(
         self,
         # The input prompt. It can be a single prompt or a batch of prompts.
@@ -542,8 +561,9 @@ class Engine(EngineBase):
     def get_weights_by_name(self, name: str, truncate_size: int = 100):
         """Get weights by parameter name."""
         obj = GetWeightsByNameReqInput(name=name, truncate_size=truncate_size)
-        return self.loop.run_until_complete(
-            self.tokenizer_manager.get_weights_by_name(obj, None)
+        return self._run_coroutine_sync(
+            self.tokenizer_manager.get_weights_by_name(obj, None),
+            description="get_weights_by_name",
         )
 
     def load_lora_adapter(self, lora_name: str, lora_path: str, pinned: bool = False):
@@ -555,8 +575,9 @@ class Engine(EngineBase):
             pinned=pinned,
         )
 
-        return self.loop.run_until_complete(
-            self.tokenizer_manager.load_lora_adapter(obj, None)
+        return self._run_coroutine_sync(
+            self.tokenizer_manager.load_lora_adapter(obj, None),
+            description="load_lora_adapter",
         )
 
     def unload_lora_adapter(self, lora_name: str):
@@ -564,21 +585,34 @@ class Engine(EngineBase):
 
         obj = UnloadLoRAAdapterReqInput(lora_name=lora_name)
 
-        return self.loop.run_until_complete(
-            self.tokenizer_manager.unload_lora_adapter(obj, None)
+        return self._run_coroutine_sync(
+            self.tokenizer_manager.unload_lora_adapter(obj, None),
+            description="unload_lora_adapter",
         )
 
     def release_memory_occupation(self, tags: Optional[List[str]] = None):
         obj = ReleaseMemoryOccupationReqInput(tags=tags)
-        return self.loop.run_until_complete(
-            self.tokenizer_manager.release_memory_occupation(obj, None)
+        return self._run_coroutine_sync(
+            self.tokenizer_manager.release_memory_occupation(obj, None),
+            description="release_memory_occupation",
         )
+
+    async def async_release_memory_occupation(
+        self, tags: Optional[List[str]] = None
+    ):
+        obj = ReleaseMemoryOccupationReqInput(tags=tags)
+        return await self.tokenizer_manager.release_memory_occupation(obj, None)
 
     def resume_memory_occupation(self, tags: Optional[List[str]] = None):
         obj = ResumeMemoryOccupationReqInput(tags=tags)
-        return self.loop.run_until_complete(
-            self.tokenizer_manager.resume_memory_occupation(obj, None)
+        return self._run_coroutine_sync(
+            self.tokenizer_manager.resume_memory_occupation(obj, None),
+            description="resume_memory_occupation",
         )
+
+    async def async_resume_memory_occupation(self, tags: Optional[List[str]] = None):
+        obj = ResumeMemoryOccupationReqInput(tags=tags)
+        return await self.tokenizer_manager.resume_memory_occupation(obj, None)
 
     def freeze_gc(self):
         """
