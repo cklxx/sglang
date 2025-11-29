@@ -703,6 +703,12 @@ class NixlKVSender(CommonKVSender):
         if not self.xfer_handles:
             return
 
+        logger.debug(
+            "[DEBUG] release_xfer_handles(): room=%s releasing=%s",
+            self.bootstrap_room,
+            self.xfer_handles,
+        )
+
         for handle in self.xfer_handles:
             try:
                 self.kv_mgr.agent.release_xfer_handle(handle)
@@ -710,6 +716,10 @@ class NixlKVSender(CommonKVSender):
                 logger.warning("Failed to release transfer handle", exc_info=True)
 
         self.xfer_handles.clear()
+
+        logger.debug(
+            "[DEBUG] release_xfer_handles(): room=%s handles_cleared", self.bootstrap_room
+        )
 
     def send(
         self,
