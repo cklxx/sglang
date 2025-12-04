@@ -1618,6 +1618,9 @@ class TokenizerManager(TokenizerCommunicatorMixin):
                     }
                 )
 
+            if getattr(recv_obj, "reasoning_tokens", None) is not None:
+                meta_info["reasoning_tokens"] = recv_obj.reasoning_tokens[i]
+
             if getattr(recv_obj, "output_hidden_states", None):
                 meta_info["hidden_states"] = recv_obj.output_hidden_states[i]
 
