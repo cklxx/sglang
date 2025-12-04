@@ -263,10 +263,38 @@ def test_openai_post_process_image_uses_imwrite(monkeypatch, tmp_path):
 
     assert "imwrite" in calls
     assert calls["imwrite"].path == str(out_path)
-    assert calls["imwrite"].format in (
-        None,
-        os.path.splitext(out_path)[1].lstrip("."),
-    )
+    assert calls["imwrite"].format == os.path.splitext(out_path)[1].lstrip(".")
     assert calls["imwrite"].frame_shape[0] > 0
     assert calls["imwrite"].frame_shape[1] > 0
+    assert calls["imwrite"].frame_shape[2] == 3
+
+
+def test_openai_post_process_image_warns_on_multiframe_and_saves_first(monkeypatch, tmp_path, caplog):
+    DataType, openai_utils = _load_openai_utils()
+    calls = {}
+
+    def fake_mimsave(*_, **__):  # noqa: A002
+        raise AssertionError("mimsave should not be called for image outputs")
+
+    def fake_imwrite(path, frame, format=None):  # noqa: A002
+        calls["imwrite"] = SimpleNamespace(
+            path=path, frame_shape=frame.shape, format=format
+        )
+
+    monkeypatch.setattr(openai_utils.imageio, "mimsave", fake_mimsave)
+    monkeypatch.setattr(openai_utils.imageio, "imwrite", fake_imwrite)
+
+    out_path = tmp_path / "out.png"
+    with caplog.at_level("WARNING"):
+        openai_utils.post_process_sample(
+            _make_sample(num_frames=2),
+            DataType.IMAGE,
+            fps=8,
+            save_output=True,
+            save_file_path=str(out_path),
+        )
+
+    assert any("multiple frames" in rec.message for rec in caplog.records)
+    assert "imwrite" in calls
+    assert calls["imwrite"].frame_shape[0] > 0
     assert calls["imwrite"].frame_shape[2] == 3

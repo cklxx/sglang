@@ -62,15 +62,24 @@ def post_process_sample(
     if save_output:
         if save_file_path:
             os.makedirs(os.path.dirname(save_file_path), exist_ok=True)
+            ext = os.path.splitext(save_file_path)[1].lower().lstrip(".")
+            save_format = ext or data_type.get_default_extension()
+            is_multiframe = len(frames) > 1
+
             if data_type == DataType.VIDEO:
                 imageio.mimsave(
                     save_file_path,
                     frames,
                     fps=fps,
-                    format=data_type.get_default_extension(),
+                    format=save_format,
                 )
             else:
-                imageio.imwrite(save_file_path, frames[0])
+                if is_multiframe:
+                    logger.warning(
+                        "Detected multiple frames for non-video output '%s'; saving the first frame only.",
+                        save_format,
+                    )
+                imageio.imwrite(save_file_path, frames[0], format=save_format)
             logger.info(f"Saved output to {save_file_path}")
         else:
             logger.info(f"No output path provided, output not saved")
